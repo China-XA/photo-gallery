@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "password": "admin123",
+      "key": "ADMIN_SECRET_KEY_2024",
+      "role": "admin",
+      "name": "管理员"
+    },
+    {
+      "id": 2,
+      "username": "guest",
+      "password": "guest123",
+      "key": "GUEST_SECRET_KEY_2024",
+      "role": "guest",
+      "name": "访客"
+    }
+  ]
+}
