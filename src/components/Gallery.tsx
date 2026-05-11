@@ -91,7 +91,6 @@ export default function Gallery() {
     localStorage.setItem('galleryCategories', JSON.stringify(categoriesWithoutAll))
   }, [categories])
 
-  /*为解决上传图片存在问题，修改使用了下断代码
   useEffect(() => {
     const loadImages = async () => {
       const { REACT_APP_GITHUB_OWNER, REACT_APP_GITHUB_REPO, REACT_APP_GITHUB_TOKEN } = process.env
@@ -128,52 +127,7 @@ export default function Gallery() {
           console.error('从 GitHub 加载图片失败:', error)
         }
       }
-      */
-	
-  useEffect(() => {
-    const loadImages = async () => {
-      const OWNER = import.meta.env.VITE_GITHUB_OWNER;
-      const REPO = import.meta.env.VITE_GITHUB_REPO;
-      const TOKEN = import.meta.env.VITE_GITHUB_TOKEN;
-
-      if (!OWNER || !REPO || !TOKEN) return;
-
-      try {
-        const res = await fetch(
-          `https://api.github.com/repos/${OWNER}/${REPO}/contents/images`,
-          {
-            headers: { Authorization: `token ${TOKEN}` }
-          }
-        );
-
-        if (res.ok) {
-          const files = await res.json();
-          if (Array.isArray(files)) {
-            const imgs = files
-              .filter(f => f.type === 'file')
-              .map(f => ({
-                id: Date.now() + Math.random(),
-                name: f.name.replace(/^\d+--\d+-/, ''),
-                url: f.download_url,
-                uploadedAt: f.last_modified,
-                category: '未分类'
-              }));
-
-            setImages(imgs);
-            setCategories(['全部', '未分类']);
-            localStorage.setItem('galleryImages', JSON.stringify(imgs));
-            localStorage.setItem('galleryCategories', JSON.stringify(['未分类']));
-          }
-        }
-      } catch (err) {
-        console.error('加载失败', err);
-      }
-    };
-
-  loadImages();
-}, []);
-  
-
+      
       const savedImages = localStorage.getItem('galleryImages')
       const savedCategories = localStorage.getItem('galleryCategories')
       
