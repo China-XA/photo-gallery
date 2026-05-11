@@ -1,0 +1,23 @@
+# 防止上传一些不需要在在线代码仓库使用的文件
+
+
+# 依赖包目录，绝对不能上传！
+node_modules/
+
+# 环境变量文件，包含你的Token等敏感信息，绝对不能上传！
+.env
+.env.local
+.env.*.local
+
+# 构建输出目录（你的项目是dist，所以也要加上）
+dist/
+build/
+
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# 系统生成的文件
+.DS_Store
+Thumbs.db
