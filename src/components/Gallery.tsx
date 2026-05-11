@@ -91,64 +91,44 @@ export default function Gallery() {
     localStorage.setItem('galleryCategories', JSON.stringify(categoriesWithoutAll))
   }, [categories])
 
-  useEffect(() => {
-    const loadImages = async () => {
-      const { REACT_APP_GITHUB_OWNER, REACT_APP_GITHUB_REPO, REACT_APP_GITHUB_TOKEN } = process.env
-      
-      if (REACT_APP_GITHUB_OWNER && REACT_APP_GITHUB_REPO && REACT_APP_GITHUB_TOKEN) {
-        try {
-          const apiUrl = `https://api.github.com/repos/${REACT_APP_GITHUB_OWNER}/${REACT_APP_GITHUB_REPO}/contents/images`
-          const response = await fetch(apiUrl, {
-            headers: {
-              'Authorization': `token ${REACT_APP_GITHUB_TOKEN}`,
-            },
-          })
-          
-          if (response.ok) {
-            const files = await response.json()
-            if (Array.isArray(files)) {
-              const githubImages: Image[] = files
-                .filter((file: any) => file.type === 'file')
-                .map((file: any) => ({
-                  id: Date.now() + Math.random(),
-                  name: file.name.replace(/^\d+-+\d+-/, ''),
-                  url: `https://${REACT_APP_GITHUB_OWNER}.github.io/${REACT_APP_GITHUB_REPO}/${file.path}`,
-                  uploadedAt: file.last_modified,
-                  category: '未分类',
-                }))
-            
-              setImages(githubImages)
-              setCategories(['全部', '未分类'])
-              localStorage.setItem('galleryImages', JSON.stringify(githubImages))
-              localStorage.setItem('galleryCategories', JSON.stringify(['未分类']))
-              return
-            }
-          }
-        } catch (error) {
-          console.error('从 GitHub 加载图片失败:', error)
+  const loadImagesFromGitHub = useCallback(async () => {
+    try {
+      const response = await fetch('/api/images')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.images && data.categories) {
+          setImages(data.images)
+          setCategories(['全部', ...data.categories])
+          localStorage.setItem('galleryImages', JSON.stringify(data.images))
+          localStorage.setItem('galleryCategories', JSON.stringify(data.categories))
         }
       }
-      
-      const savedImages = localStorage.getItem('galleryImages')
-      const savedCategories = localStorage.getItem('galleryCategories')
-      
-      if (savedImages && savedCategories) {
-        setImages(JSON.parse(savedImages))
-        setCategories(['全部', ...JSON.parse(savedCategories)])
-      } else {
-        setImages(imagesData.images)
-        setCategories(['全部', ...imagesData.categories])
-      }
+    } catch (error) {
+      console.error('Failed to load images from GitHub:', error)
     }
-    
-    loadImages()
   }, [])
+
+  useEffect(() => {
+    const savedImages = localStorage.getItem('galleryImages')
+    const savedCategories = localStorage.getItem('galleryCategories')
+    
+    if (savedImages && savedCategories) {
+      setImages(JSON.parse(savedImages))
+      setCategories(['全部', ...JSON.parse(savedCategories)])
+    } else {
+      setImages(imagesData.images)
+      setCategories(['全部', ...imagesData.categories])
+    }
+
+    loadImagesFromGitHub()
+  }, [loadImagesFromGitHub])
 
   useEffect(() => {
     const isAdmin = currentUser?.role === 'admin'
     const isGuest = currentUser?.role === 'guest'
     const initialButtons: NavButton[] = [
       { id: 'upload', label: '📤 上传图片', action: () => fileInputRef.current?.click(), className: 'nav-btn primary', condition: !isGuest },
+      { id: 'sync', label: '🔃 同步', action: loadImagesFromGitHub, className: 'nav-btn cyan', condition: !isGuest },
       { id: 'category', label: '🏷️ 分类管理', action: () => setShowCategoryModal(true), className: 'nav-btn pink', condition: !isGuest },
       { id: 'user', label: '👤 用户管理', action: () => setShowUserModal(true), className: 'nav-btn blue', condition: isAdmin },
       { id: 'inviteCode', label: '🎫 授权码管理', action: () => setShowInviteCodeModal(true), className: 'nav-btn purple', condition: isAdmin },
@@ -210,61 +190,44 @@ export default function Gallery() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const { REACT_APP_GITHUB_OWNER, REACT_APP_GITHUB_REPO, REACT_APP_GITHUB_TOKEN } = process.env
-
     const uploadPromises = Array.from(files).map((file, index) => {
       return new Promise<void>((resolve) => {
         const reader = new FileReader()
         reader.onload = async (event) => {
-          const base64String = (event.target?.result as string).split(',')[1]
-          const fileName = `images/${Date.now()}-${index}-${file.name}`
-
           setUploading(true)
           setUploadMessage(`正在上传 ${file.name}...`)
           setUploadProgress(Math.round(((index + 1) / files.length) * 50))
 
+          const imageData = event.target?.result as string
+          let imageUrl = imageData
+
           try {
-            const apiUrl = `https://api.github.com/repos/${REACT_APP_GITHUB_OWNER}/${REACT_APP_GITHUB_REPO}/contents/${fileName}`
-            const response = await fetch(apiUrl, {
-              method: 'PUT',
+            const response = await fetch('/api/upload', {
+              method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `token ${REACT_APP_GITHUB_TOKEN}`,
               },
               body: JSON.stringify({
-                message: `Upload image: ${file.name}`,
-                content: base64String,
-                branch: 'main',
+                imageData,
+                fileName: file.name,
               }),
             })
 
-            const data = await response.json()
-            if (data.content) {
-              const newImage: Image = {
-                id: Date.now(),
-                name: file.name,
-                url: `https://${REACT_APP_GITHUB_OWNER}.github.io/${REACT_APP_GITHUB_REPO}/${fileName}`,
-                uploadedAt: new Date().toISOString(),
-                category: '未分类',
+            if (response.ok) {
+              const result = await response.json()
+              if (result.success && result.url) {
+                imageUrl = result.url
               }
-              setImages((prev) => [newImage, ...prev])
-              if (!categories.includes('未分类')) {
-                setCategories((prev) => [...prev, '未分类'])
-              }
-              setUploadProgress(100)
-              setTimeout(() => saveGalleryData(), 0)
-              setUploadMessage('上传成功！')
-            } else {
-              console.error('上传失败:', data.message)
-              throw new Error(data.message || '上传失败')
             }
           } catch (error) {
-            console.error('上传失败:', error)
-            setUploadMessage('上传失败，将保存在本地')
+            console.error('上传到 GitHub 失败，将保存在本地:', error)
+          }
+
+          try {
             const newImage: Image = {
               id: Date.now(),
               name: file.name,
-              url: event.target?.result as string,
+              url: imageUrl,
               uploadedAt: new Date().toISOString(),
               category: '未分类',
             }
@@ -272,7 +235,12 @@ export default function Gallery() {
             if (!categories.includes('未分类')) {
               setCategories((prev) => [...prev, '未分类'])
             }
+            setUploadProgress(100)
             setTimeout(() => saveGalleryData(), 0)
+            setUploadMessage('上传成功！')
+          } catch (error) {
+            console.error('保存图片失败:', error)
+            setUploadMessage('保存失败')
           }
 
           resolve()
