@@ -97,7 +97,8 @@ export default function Gallery() {
       
       if (REACT_APP_GITHUB_OWNER && REACT_APP_GITHUB_REPO && REACT_APP_GITHUB_TOKEN) {
         try {
-          const response = await fetch(`/api/repos/${REACT_APP_GITHUB_OWNER}/${REACT_APP_GITHUB_REPO}/contents/images`, {
+          const apiUrl = `https://api.github.com/repos/${REACT_APP_GITHUB_OWNER}/${REACT_APP_GITHUB_REPO}/contents/images`
+          const response = await fetch(apiUrl, {
             headers: {
               'Authorization': `token ${REACT_APP_GITHUB_TOKEN}`,
             },
@@ -223,7 +224,8 @@ export default function Gallery() {
           setUploadProgress(Math.round(((index + 1) / files.length) * 50))
 
           try {
-            const response = await fetch(`/api/repos/${REACT_APP_GITHUB_OWNER}/${REACT_APP_GITHUB_REPO}/contents/${fileName}`, {
+            const apiUrl = `https://api.github.com/repos/${REACT_APP_GITHUB_OWNER}/${REACT_APP_GITHUB_REPO}/contents/${fileName}`
+            const response = await fetch(apiUrl, {
               method: 'PUT',
               headers: {
                 'Content-Type': 'application/json',
