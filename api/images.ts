@@ -43,8 +43,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       })
     }
 
-    const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-    let galleryData = JSON.parse(content);
+    const content = Buffer.from((response.data as any).content, 'base64').toString('utf-8')
+    let galleryData = JSON.parse(content)
 
     // 使用 jsDelivr CDN 加速国内访问
     if (galleryData.images && Array.isArray(galleryData.images)) {
@@ -54,15 +54,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           'https://raw.githubusercontent.com/',
           'https://cdn.jsdelivr.net/gh/'
         ) || img.url
-      }));
+      }))
     }
 
-    console.log('Successfully fetched images from GitHub:', galleryData.images?.length || 0, 'images');
+    console.log('Successfully fetched images from GitHub:', galleryData.images?.length || 0, 'images')
 
     res.status(200).json({
       success: true,
       ...galleryData
-    });})
+    })
   } catch (error: any) {
     console.error('GitHub API error details:', {
       message: error.message,

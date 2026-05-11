@@ -60,7 +60,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     console.log('Image uploaded to GitHub, status:', imageResponse.status);
 
-    const githubUrl = imageResponse.data.content?.download_url;
+    const githubUrl = (imageResponse.data.content as any)?.download_url;
     if (!githubUrl) {
       throw new Error('Failed to get image URL from GitHub response');
     }
@@ -86,9 +86,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         throw new Error('Unexpected response format for images.json')
       }
 
-      const content = Buffer.from(existingData.data.content, 'base64').toString('utf-8')
+      const content = Buffer.from((existingData.data as any).content, 'base64').toString('utf-8')
       galleryData = JSON.parse(content)
-      currentSha = existingData.data.sha
+      currentSha = (existingData.data as any).sha
       console.log('Successfully loaded images.json from GitHub')
     } catch (err: any) {
       console.log('images.json does not exist yet, will create it:', err.message)
