@@ -23,11 +23,14 @@ jobs:
 
       - name: Build project
         run: npm run build
+        
+        
         # ✅ 这里新增 env 配置，注入你的 Secrets
         env:
-          REACT_APP_GITHUB_TOKEN: ${{ secrets.REACT_APP_GITHUB_TOKEN }}
-          REACT_APP_GITHUB_OWNER: ${{ secrets.REACT_APP_GITHUB_OWNER }}
-          REACT_APP_GITHUB_REPO: ${{ secrets.REACT_APP_GITHUB_REPO }}
+          VITE_GITHUB_OWNER: ${{ secrets.VITE_GITHUB_OWNER }}
+          VITE_GITHUB_REPO: ${{ secrets.VITE_GITHUB_REPO }}
+          VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
+          
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
