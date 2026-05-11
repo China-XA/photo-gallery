@@ -112,7 +112,7 @@ export default function Gallery() {
                 .map((file: any) => ({
                   id: Date.now() + Math.random(),
                   name: file.name.replace(/^\d+-+\d+-/, ''),
-                  url: file.download_url,
+                  url: `https://${REACT_APP_GITHUB_OWNER}.github.io/${REACT_APP_GITHUB_REPO}/${file.path}`,
                   uploadedAt: file.last_modified,
                   category: '未分类',
                 }))
@@ -243,7 +243,7 @@ export default function Gallery() {
               const newImage: Image = {
                 id: Date.now(),
                 name: file.name,
-                url: `https://raw.githubusercontent.com/${REACT_APP_GITHUB_OWNER}/${REACT_APP_GITHUB_REPO}/main/${fileName}`,
+                url: `https://${REACT_APP_GITHUB_OWNER}.github.io/${REACT_APP_GITHUB_REPO}/${fileName}`,
                 uploadedAt: new Date().toISOString(),
                 category: '未分类',
               }
