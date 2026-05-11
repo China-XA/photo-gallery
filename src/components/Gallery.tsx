@@ -66,65 +66,56 @@ export default function Gallery() {
   const [newPasswordInput, setNewPasswordInput] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [changePasswordMessage, setChangePasswordMessage] = useState('')
-  const [userToChangePassword, setUserToChangePassword] = useState<any>(null)
+  const [userToChangePassword, setUserToChangePassword] = useState<User | null>(null)
   const [adminNewPassword, setAdminNewPassword] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
-  const loadImagesRef = useRef<() => Promise<void>>()
 
-  const saveGalleryData = () => {
-    const categoriesWithoutAll = categories.filter(c => c !== '全部')
-    localStorage.setItem('galleryImages', JSON.stringify(images))
-    localStorage.setItem('galleryCategories', JSON.stringify(categoriesWithoutAll))
-  }
-
-  const saveCategoriesOnly = () => {
-    const categoriesWithoutAll = categories.filter(c => c !== '全部')
-    localStorage.setItem('galleryCategories', JSON.stringify(categoriesWithoutAll))
-  }
-
-  const loadImagesFromGitHub = async () => {
+  const loadImagesFromGitHub = async (showError = true) => {
     try {
+      setLoading(true)
+      setErrorMessage(null)
       const response = await fetch('/api/images')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.images && data.categories) {
-          setImages(data.images)
-          setCategories(['全部', ...data.categories])
-          localStorage.setItem('galleryImages', JSON.stringify(data.images))
-          localStorage.setItem('galleryCategories', JSON.stringify(data.categories))
+      const data = await response.json()
+      
+      if (data.success && data.images && data.categories) {
+        setImages(data.images)
+        setCategories(['全部', ...data.categories])
+        console.log('Images loaded successfully from GitHub')
+      } else {
+        const errorMsg = data.error || 'Failed to load images'
+        if (showError) {
+          setErrorMessage(errorMsg)
         }
+        console.error('Failed to load images:', data.error)
+        setImages(imagesData.images)
+        setCategories(['全部', ...imagesData.categories])
       }
     } catch (error) {
+      const errorMsg = 'Failed to connect to server'
+      if (showError) {
+        setErrorMessage(errorMsg)
+      }
       console.error('Failed to load images from GitHub:', error)
+      setImages(imagesData.images)
+      setCategories(['全部', ...imagesData.categories])
+    } finally {
+      setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadImagesRef.current = loadImagesFromGitHub
-  })
-
-  useEffect(() => {
-    const savedImages = localStorage.getItem('galleryImages')
-    const savedCategories = localStorage.getItem('galleryCategories')
-    
-    if (savedImages && savedCategories) {
-      setImages(JSON.parse(savedImages))
-      setCategories(['全部', ...JSON.parse(savedCategories)])
-    } else {
-      setImages(imagesData.images)
-      setCategories(['全部', ...imagesData.categories])
-    }
-
     loadImagesFromGitHub()
-  }, [loadImagesFromGitHub])
+  }, [])
 
   useEffect(() => {
     const isAdmin = currentUser?.role === 'admin'
     const isGuest = currentUser?.role === 'guest'
     const initialButtons: NavButton[] = [
       { id: 'upload', label: '📤 上传图片', action: () => fileInputRef.current?.click(), className: 'nav-btn primary', condition: !isGuest },
-      { id: 'sync', label: '🔃 同步', action: () => loadImagesRef.current?.(), className: 'nav-btn cyan', condition: !isGuest },
+      { id: 'sync', label: '🔃 同步', action: () => loadImagesFromGitHub(true), className: 'nav-btn cyan', condition: !isGuest },
       { id: 'category', label: '🏷️ 分类管理', action: () => setShowCategoryModal(true), className: 'nav-btn pink', condition: !isGuest },
       { id: 'user', label: '👤 用户管理', action: () => setShowUserModal(true), className: 'nav-btn blue', condition: isAdmin },
       { id: 'inviteCode', label: '🎫 授权码管理', action: () => setShowInviteCodeModal(true), className: 'nav-btn purple', condition: isAdmin },
@@ -134,22 +125,7 @@ export default function Gallery() {
       { id: 'reset', label: '🔄 重置', action: handleResetGallery, className: 'nav-btn warning', condition: !isGuest },
     ]
     
-    const savedOrder = localStorage.getItem('navButtonOrder')
-    if (savedOrder) {
-      const order = JSON.parse(savedOrder) as string[]
-      const existingIds = new Set(order)
-      const orderedButtons = order
-        .map(id => initialButtons.find(btn => btn.id === id))
-        .filter((btn): btn is NavButton => btn !== undefined && btn.condition !== undefined && btn.condition)
-      
-      const newButtons = initialButtons.filter(btn => 
-        btn.condition && !existingIds.has(btn.id)
-      )
-      
-      setNavButtons([...orderedButtons, ...newButtons])
-    } else {
-      setNavButtons(initialButtons.filter(btn => btn.condition))
-    }
+    setNavButtons(initialButtons.filter(btn => btn.condition))
   }, [currentUser?.role])
 
   const handleNavBtnDragStart = (e: React.DragEvent | any, index: number) => {
@@ -174,7 +150,6 @@ export default function Gallery() {
     newButtons.splice(draggedBtnIndex, 1)
     newButtons.splice(targetIndex, 0, draggedBtn)
     setNavButtons(newButtons)
-    localStorage.setItem('navButtonOrder', JSON.stringify(newButtons.map(btn => btn.id)))
     setDraggedBtnIndex(null)
   }
 
@@ -195,7 +170,6 @@ export default function Gallery() {
           setUploadProgress(Math.round(((index + 1) / files.length) * 50))
 
           const imageData = event.target?.result as string
-          let imageUrl = imageData
 
           try {
             const response = await fetch('/api/upload', {
@@ -209,34 +183,22 @@ export default function Gallery() {
               }),
             })
 
-            if (response.ok) {
-              const result = await response.json()
-              if (result.success && result.url) {
-                imageUrl = result.url
-              }
+            const result = await response.json()
+            
+            if (response.ok && result.success) {
+              setUploadProgress(100)
+              setUploadMessage(`✅ ${file.name} 上传成功`)
+              console.log('Image uploaded successfully:', result)
+              
+              await loadImagesFromGitHub(false)
+            } else {
+              const errorMsg = result.error || '上传失败'
+              console.error('Upload failed:', errorMsg)
+              setUploadMessage(`❌ ${file.name} 上传失败: ${errorMsg}`)
             }
           } catch (error) {
-            console.error('上传到 GitHub 失败，将保存在本地:', error)
-          }
-
-          try {
-            const newImage: Image = {
-              id: Date.now(),
-              name: file.name,
-              url: imageUrl,
-              uploadedAt: new Date().toISOString(),
-              category: '未分类',
-            }
-            setImages((prev) => [newImage, ...prev])
-            if (!categories.includes('未分类')) {
-              setCategories((prev) => [...prev, '未分类'])
-            }
-            setUploadProgress(100)
-            setTimeout(() => saveGalleryData(), 0)
-            setUploadMessage('上传成功！')
-          } catch (error) {
-            console.error('保存图片失败:', error)
-            setUploadMessage('保存失败')
+            console.error('Upload error:', error)
+            setUploadMessage(`❌ ${file.name} 上传失败，请检查网络连接`)
           }
 
           resolve()
@@ -246,26 +208,29 @@ export default function Gallery() {
     })
 
     Promise.all(uploadPromises).then(() => {
-      setUploading(false)
-      setUploadProgress(0)
-      setUploadMessage('')
+      setTimeout(() => {
+        setUploading(false)
+        setUploadProgress(0)
+        setUploadMessage('')
+      }, 3000)
     })
   }
 
-  const handleDeleteImage = (imageId: number, e: React.MouseEvent) => {
+  const handleDeleteImage = async (_imageId: number, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm('确定要删除这张图片吗？')) {
-      setImages((prev) => prev.filter((img) => img.id !== imageId))
-      setTimeout(() => saveGalleryData(), 0)
+    if (!confirm('确定要删除这张图片吗？')) {
+      return
     }
+
+    alert('删除功能需要实现 GitHub 上的图片和 images.json 更新，当前仅本地更新演示')
   }
 
   const handleResetGallery = () => {
-    if (confirm('确定要重置为默认图片吗？这将删除所有上传的图片。')) {
+    if (confirm('确定要重置为默认图片吗？这会从 GitHub 重新加载数据。')) {
       setImages(imagesData.images)
       setCategories(['全部', ...imagesData.categories])
-      localStorage.removeItem('galleryImages')
-      localStorage.removeItem('galleryCategories')
+      setUploadMessage('已重置到默认状态，请手动同步 GitHub')
+      setTimeout(() => setUploadMessage(''), 3000)
     }
   }
 
@@ -293,9 +258,11 @@ export default function Gallery() {
         const importedCategories = importedData.categories || []
         
         if (Array.isArray(importedImages)) {
-          if (confirm(`确定要导入 ${importedImages.length} 张图片吗？这将替换当前所有图片。`)) {
+          if (confirm(`确定要导入 ${importedImages.length} 张图片吗？这将替换当前显示的图片，但需要手动同步到 GitHub。`)) {
             setImages(importedImages)
             setCategories(['全部', ...importedCategories])
+            setUploadMessage('导入成功，请手动同步到 GitHub')
+            setTimeout(() => setUploadMessage(''), 3000)
           }
         } else {
           alert('导入的文件格式不正确，请选择有效的图片导出文件。')
@@ -330,6 +297,8 @@ export default function Gallery() {
     newImages.splice(targetIndex, 0, draggedImage)
     setImages(newImages)
     setImageDraggedIndex(null)
+    
+    alert('图片排序已更新，需要手动同步到 GitHub 才能保存')
   }
 
   const handleDragEnd = () => {
@@ -340,10 +309,10 @@ export default function Gallery() {
     if (newCategoryName.trim()) {
       if (!categories.includes(newCategoryName.trim())) {
         setCategories((prev) => [...prev, newCategoryName.trim()])
-        setTimeout(() => saveCategoriesOnly(), 0)
       }
       setNewCategoryName('')
       setShowAddCategoryModal(false)
+      alert('分类已添加，需要手动同步到 GitHub 才能保存')
     }
   }
 
@@ -352,7 +321,9 @@ export default function Gallery() {
     
     setCategories((prev) => prev.map(c => c === oldName ? newName.trim() : c))
     setImages((prev) => prev.map(img => img.category === oldName ? { ...img, category: newName.trim() } : img))
-    setTimeout(() => saveGalleryData(), 0)
+    setEditingCategory(null)
+    setEditingCategoryName('')
+    alert('分类已更新，需要手动同步到 GitHub 才能保存')
   }
 
   const handleDeleteCategory = (categoryName: string) => {
@@ -364,7 +335,7 @@ export default function Gallery() {
     if (confirm(`确定要删除分类"${categoryName}"吗？该分类下的图片将移动到"未分类"。`)) {
       setCategories((prev) => prev.filter(c => c !== categoryName))
       setImages((prev) => prev.map(img => img.category === categoryName ? { ...img, category: '未分类' } : img))
-      setTimeout(() => saveGalleryData(), 0)
+      alert('分类已删除，需要手动同步到 GitHub 才能保存')
     }
   }
 
@@ -372,7 +343,7 @@ export default function Gallery() {
     setImages((prev) =>
       prev.map((img) => (img.id === imageId ? { ...img, category: newCategory } : img))
     )
-    setTimeout(() => saveGalleryData(), 0)
+    alert('图片分类已更新，需要手动同步到 GitHub 才能保存')
   }
 
   const handleAddUser = () => {
@@ -580,6 +551,13 @@ export default function Gallery() {
         </div>
       </nav>
 
+      {errorMessage && (
+        <div className="error-banner">
+          <p>⚠️ {errorMessage}</p>
+          <button onClick={() => loadImagesFromGitHub(true)}>重试</button>
+        </div>
+      )}
+
       <div className="category-filter">
         {categories.map((category) => (
           <button
@@ -616,51 +594,67 @@ export default function Gallery() {
         </motion.div>
       )}
 
-      <div className="gallery-grid">
-        {filteredImages.map((image, index) => (
-          <motion.div
-            key={image.id}
-            className={`gallery-item ${imageDraggedIndex === index ? 'dragging' : ''}`}
-            draggable
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, index)}
-            onDragEnd={handleDragEnd}
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            whileHover={{ scale: 1.05, zIndex: 10 }}
-            onClick={() => setSelectedImage(image.url)}
-          >
-            <img src={image.url} alt={image.name} loading="lazy" />
-            <div className="overlay">
-              <span>查看</span>
-            </div>
-            <div className="image-category">
-              {image.category}
-            </div>
-            <button
-              className="delete-btn"
-              onClick={(e) => handleDeleteImage(image.id, e)}
-              title="删除图片"
-            >
-              ×
-            </button>
-            <select
-              className="category-select"
-              value={image.category}
-              onChange={(e) => handleUpdateImageCategory(image.id, e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {categories.filter((c) => c !== '全部').map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </motion.div>
-        ))}
-      </div>
+      {!uploading && uploadMessage && (
+        <motion.div
+          className="upload-status"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <p>{uploadMessage}</p>
+        </motion.div>
+      )}
 
-      {filteredImages.length === 0 && (
+      {loading ? (
+        <div className="loading-state">
+          <p>正在从 GitHub 加载图片...</p>
+        </div>
+      ) : (
+        <div className="gallery-grid">
+          {filteredImages.map((image, index) => (
+            <motion.div
+              key={image.id}
+              className={`gallery-item ${imageDraggedIndex === index ? 'dragging' : ''}`}
+              draggable
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragEnd={handleDragEnd}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              whileHover={{ scale: 1.05, zIndex: 10 }}
+              onClick={() => setSelectedImage(image.url)}
+            >
+              <img src={image.url} alt={image.name} loading="lazy" />
+              <div className="overlay">
+                <span>查看</span>
+              </div>
+              <div className="image-category">
+                {image.category}
+              </div>
+              <button
+                className="delete-btn"
+                onClick={(e) => handleDeleteImage(image.id, e)}
+                title="删除图片"
+              >
+                ×
+              </button>
+              <select
+                className="category-select"
+                value={image.category}
+                onChange={(e) => handleUpdateImageCategory(image.id, e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {categories.filter((c) => c !== '全部').map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </motion.div>
+          ))}
+        </div>
+      )}
+
+      {!loading && filteredImages.length === 0 && (
         <div className="empty-state">
           <p>该分类下暂无图片，点击上方按钮上传图片吧！</p>
         </div>
@@ -726,8 +720,6 @@ export default function Gallery() {
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                               handleEditCategory(category, editingCategoryName)
-                              setEditingCategory(null)
-                              setEditingCategoryName('')
                             } else if (e.key === 'Escape') {
                               setEditingCategory(null)
                               setEditingCategoryName('')
@@ -739,8 +731,6 @@ export default function Gallery() {
                           className="save-edit-btn"
                           onClick={() => {
                             handleEditCategory(category, editingCategoryName)
-                            setEditingCategory(null)
-                            setEditingCategoryName('')
                           }}
                         >
                           ✓
@@ -880,7 +870,7 @@ export default function Gallery() {
                           onClick={() => toggleShowPassword(user.id)}
                           title={showPasswords[user.id] ? '隐藏密码' : '显示密码'}
                         >
-                          {showPasswords[user.id] ? '\u{1F648}' : '\u{1F435}'}
+                          {showPasswords[user.id] ? '🙈' : '🐵'}
                         </button>
                       </div>
                       <div className="user-row">
@@ -1254,7 +1244,7 @@ export default function Gallery() {
                 <button className="close-btn" onClick={cancelDeleteInviteCode}>✕</button>
               </div>
               <div className="delete-confirm-content">
-                <p className="delete-warning">确定要删除此条授权码记录吗？</p>
+                <p className="delete-warning">确定要删除这条授权码记录吗？</p>
                 <p className="delete-notice">此操作不可恢复</p>
               </div>
               <div className="modal-buttons">

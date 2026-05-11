@@ -11,7 +11,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const githubRepo = process.env.REACT_APP_GITHUB_REPO
 
   if (!githubToken || !githubOwner || !githubRepo) {
-    return res.status(500).json({ error: 'GitHub credentials not configured' })
+    const missing = []
+    if (!githubToken) missing.push('GITHUB_TOKEN')
+    if (!githubOwner) missing.push('REACT_APP_GITHUB_OWNER')
+    if (!githubRepo) missing.push('REACT_APP_GITHUB_REPO')
+    
+    console.error('GitHub credentials missing:', missing)
+    return res.status(500).json({ 
+      success: false,
+      error: 'GitHub integration not configured. Missing environment variables: ' + missing.join(', ')
+    })
   }
 
   const octokit = new Octokit({
@@ -19,6 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   })
 
   try {
+    console.log('Fetching images from GitHub...')
     const response = await octokit.rest.repos.getContent({
       owner: githubOwner,
       repo: githubRepo,
@@ -26,15 +36,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     if (Array.isArray(response.data)) {
-      return res.status(500).json({ error: 'Unexpected response format' })
+      console.error('Unexpected array response instead of file')
+      return res.status(500).json({ 
+        success: false,
+        error: 'Unexpected response format from GitHub' 
+      })
     }
 
-    const content = Buffer.from(response.data.content, 'base64').toString('utf-8')
-    const galleryData = JSON.parse(content)
+    const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+    let galleryData = JSON.parse(content);
 
-    res.status(200).json(galleryData)
+    // 使用 jsDelivr CDN 加速国内访问
+    if (galleryData.images && Array.isArray(galleryData.images)) {
+      galleryData.images = galleryData.images.map((img: any) => ({
+        ...img,
+        url: img.url?.replace(
+          'https://raw.githubusercontent.com/',
+          'https://cdn.jsdelivr.net/gh/'
+        ) || img.url
+      }));
+    }
+
+    console.log('Successfully fetched images from GitHub:', galleryData.images?.length || 0, 'images');
+
+    res.status(200).json({
+      success: true,
+      ...galleryData
+    });})
   } catch (error: any) {
-    console.error('GitHub API error:', error)
-    res.status(200).json({ images: [], categories: [] })
+    console.error('GitHub API error details:', {
+      message: error.message,
+      status: error.status
+    })
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to load from GitHub: ' + error.message
+    })
   }
 }
