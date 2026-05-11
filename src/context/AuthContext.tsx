@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 import initialUsersData from '../data/users.json'
 
-interface User {
+export interface User {
   id: number
   username: string
   password: string
@@ -21,22 +21,11 @@ interface InviteCode {
   createdBy: string
 }
 
-interface OperationLog {
-  id: string
-  action: string
-  targetId: string
-  targetType: 'inviteCode' | 'user' | 'image'
-  operator: string
-  timestamp: number
-  details: string
-}
-
 interface AuthContextType {
   isAuthenticated: boolean
   currentUser: User | null
   users: User[]
   inviteCodes: InviteCode[]
-  operationLogs: OperationLog[]
   login: (username: string, password: string) => { success: boolean; message: string }
   logout: () => void
   addUser: (username: string, password: string, name: string, role?: string) => { success: boolean; message: string }
@@ -48,7 +37,6 @@ interface AuthContextType {
   deactivateInviteCode: (codeId: string) => void
   deleteInviteCode: (codeId: string) => { success: boolean; message: string }
   registerUser: (username: string, password: string, name: string, inviteCode: string) => { success: boolean; message: string }
-  getOperationLogs: (limit?: number) => OperationLog[]
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -78,45 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return []
   })
-
-  const [operationLogs, setOperationLogs] = useState<OperationLog[]>(() => {
-    const savedLogs = localStorage.getItem('operationLogs')
-    if (savedLogs) {
-      return JSON.parse(savedLogs)
-    }
-    return []
-  })
-
-  const saveOperationLogs = (logs: OperationLog[]) => {
-    setOperationLogs(logs)
-    localStorage.setItem('operationLogs', JSON.stringify(logs))
-  }
-
-  const addOperationLog = (
-    action: string,
-    targetId: string,
-    targetType: 'inviteCode' | 'user' | 'image',
-    details: string
-  ): void => {
-    const newLog: OperationLog = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-      action,
-      targetId,
-      targetType,
-      operator: currentUser?.username || 'unknown',
-      timestamp: Date.now(),
-      details
-    }
-    const updatedLogs = [newLog, ...operationLogs].slice(0, 100)
-    saveOperationLogs(updatedLogs)
-  }
-
-  const getOperationLogs = (limit?: number): OperationLog[] => {
-    if (limit) {
-      return operationLogs.slice(0, limit)
-    }
-    return operationLogs
-  }
 
   const saveInviteCodes = (codes: InviteCode[]) => {
     setInviteCodes(codes)
@@ -179,19 +128,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const deactivateInviteCode = (codeId: string): void => {
-    const codeToDeactivate = inviteCodes.find(c => c.id === codeId)
     const updatedCodes = inviteCodes.map(c => 
       c.id === codeId ? { ...c, active: false } : c
     )
     saveInviteCodes(updatedCodes)
-    if (codeToDeactivate) {
-      addOperationLog(
-        'deactivate',
-        codeId,
-        'inviteCode',
-        `作废了授权码: ${codeToDeactivate.code}`
-      )
-    }
   }
 
   const deleteInviteCode = (codeId: string): { success: boolean; message: string } => {
@@ -208,13 +148,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       const updatedCodes = inviteCodes.filter(c => c.id !== codeId)
       saveInviteCodes(updatedCodes)
-      
-      addOperationLog(
-        'delete',
-        codeId,
-        'inviteCode',
-        `删除了授权码: ${codeToDelete.code}`
-      )
       
       return { success: true, message: '授权码已成功删除' }
     } catch (error) {
@@ -355,7 +288,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       currentUser, 
       users,
       inviteCodes,
-      operationLogs,
       login, 
       logout,
       addUser,
@@ -366,8 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       useInviteCode,
       deactivateInviteCode,
       deleteInviteCode,
-      registerUser,
-      getOperationLogs
+      registerUser
     }}>
       {children}
     </AuthContext.Provider>

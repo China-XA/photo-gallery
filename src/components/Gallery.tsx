@@ -1,17 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useState, useEffect, useRef } from 'react'
+import { useAuth, User } from '../context/AuthContext'
 import imagesData from '../data/images.json'
 import './Gallery.css'
-
-interface User {
-  id: number
-  username: string
-  password: string
-  key: string
-  role: string
-  name: string
-}
 
 const padString = (str: string, length: number): string => {
   if (str.length >= length) {
@@ -75,23 +66,24 @@ export default function Gallery() {
   const [newPasswordInput, setNewPasswordInput] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [changePasswordMessage, setChangePasswordMessage] = useState('')
-  const [userToChangePassword, setUserToChangePassword] = useState<User | null>(null)
+  const [userToChangePassword, setUserToChangePassword] = useState<any>(null)
   const [adminNewPassword, setAdminNewPassword] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+  const loadImagesRef = useRef<() => Promise<void>>()
 
-  const saveGalleryData = useCallback(() => {
+  const saveGalleryData = () => {
     const categoriesWithoutAll = categories.filter(c => c !== '全部')
     localStorage.setItem('galleryImages', JSON.stringify(images))
     localStorage.setItem('galleryCategories', JSON.stringify(categoriesWithoutAll))
-  }, [images, categories])
+  }
 
-  const saveCategoriesOnly = useCallback(() => {
+  const saveCategoriesOnly = () => {
     const categoriesWithoutAll = categories.filter(c => c !== '全部')
     localStorage.setItem('galleryCategories', JSON.stringify(categoriesWithoutAll))
-  }, [categories])
+  }
 
-  const loadImagesFromGitHub = useCallback(async () => {
+  const loadImagesFromGitHub = async () => {
     try {
       const response = await fetch('/api/images')
       if (response.ok) {
@@ -106,7 +98,11 @@ export default function Gallery() {
     } catch (error) {
       console.error('Failed to load images from GitHub:', error)
     }
-  }, [])
+  }
+
+  useEffect(() => {
+    loadImagesRef.current = loadImagesFromGitHub
+  })
 
   useEffect(() => {
     const savedImages = localStorage.getItem('galleryImages')
@@ -128,7 +124,7 @@ export default function Gallery() {
     const isGuest = currentUser?.role === 'guest'
     const initialButtons: NavButton[] = [
       { id: 'upload', label: '📤 上传图片', action: () => fileInputRef.current?.click(), className: 'nav-btn primary', condition: !isGuest },
-      { id: 'sync', label: '🔃 同步', action: loadImagesFromGitHub, className: 'nav-btn cyan', condition: !isGuest },
+      { id: 'sync', label: '🔃 同步', action: () => loadImagesRef.current?.(), className: 'nav-btn cyan', condition: !isGuest },
       { id: 'category', label: '🏷️ 分类管理', action: () => setShowCategoryModal(true), className: 'nav-btn pink', condition: !isGuest },
       { id: 'user', label: '👤 用户管理', action: () => setShowUserModal(true), className: 'nav-btn blue', condition: isAdmin },
       { id: 'inviteCode', label: '🎫 授权码管理', action: () => setShowInviteCodeModal(true), className: 'nav-btn purple', condition: isAdmin },
