@@ -7,7 +7,7 @@
     "prebuild": "chmod -R +x node_modules/.bin/", // 新增：给所有二进制文件加执行权限
     "build": "tsc && vite build", // 你的原有build命令（保留不变）
     "dev": "vite",
-    "preview": "vite preview"
+    "preview": "vite preview",
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
