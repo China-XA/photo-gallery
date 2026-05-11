@@ -2,6 +2,8 @@ import { VercelRequest, VercelResponse } from '@vercel/node'
 import { Octokit } from '@octokit/rest'
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('=== Images API called ===')
+  
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -9,6 +11,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const githubToken = process.env.GITHUB_TOKEN
   const githubOwner = process.env.REACT_APP_GITHUB_OWNER
   const githubRepo = process.env.REACT_APP_GITHUB_REPO
+
+  console.log('Environment check:', {
+    hasToken: !!githubToken,
+    owner: githubOwner,
+    repo: githubRepo,
+  })
 
   if (!githubToken || !githubOwner || !githubRepo) {
     const missing = []
@@ -19,7 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('GitHub credentials missing:', missing)
     return res.status(500).json({ 
       success: false,
-      error: 'GitHub integration not configured. Missing environment variables: ' + missing.join(', ')
+      error: 'GitHub integration not configured. Missing: ' + missing.join(', ')
     })
   }
 
@@ -28,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   })
 
   try {
-    console.log('Fetching images from GitHub...')
+    console.log('Loading images from GitHub...')
     const response = await octokit.rest.repos.getContent({
       owner: githubOwner,
       repo: githubRepo,
@@ -36,7 +44,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     })
 
     if (Array.isArray(response.data)) {
-      console.error('Unexpected array response instead of file')
+      console.error('Got array instead of file')
       return res.status(500).json({ 
         success: false,
         error: 'Unexpected response format from GitHub' 
@@ -45,6 +53,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const content = Buffer.from((response.data as any).content, 'base64').toString('utf-8')
     let galleryData = JSON.parse(content)
+
+    console.log('Loaded gallery data:', {
+      imagesCount: galleryData.images?.length || 0,
+      categoriesCount: galleryData.categories?.length || 0,
+    })
 
     // 使用 jsDelivr CDN 加速国内访问
     if (galleryData.images && Array.isArray(galleryData.images)) {
@@ -57,20 +70,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }))
     }
 
-    console.log('Successfully fetched images from GitHub:', galleryData.images?.length || 0, 'images')
+    console.log('=== Images API complete ===')
 
     res.status(200).json({
       success: true,
       ...galleryData
     })
   } catch (error: any) {
-    console.error('GitHub API error details:', {
-      message: error.message,
-      status: error.status
-    })
+    console.error('=== ERROR in images API ===')
+    console.error('Error message:', error.message)
+    console.error('Error status:', error.status)
+    console.error('Error response:', error.response?.data)
+    
     res.status(500).json({ 
       success: false,
-      error: 'Failed to load from GitHub: ' + error.message
+      error: 'Failed to load: ' + error.message,
+      details: error.response?.data || null,
+      status: error.status || null
     })
   }
 }
