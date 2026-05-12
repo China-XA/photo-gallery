@@ -1,6 +1,0 @@
-{
-  "version": 2,
-  "buildCommand": "npx vite build",
-  "devCommand": "npx vite",
-  "outputDirectory": "dist"
-}
