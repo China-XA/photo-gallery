@@ -59,6 +59,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       categoriesCount: galleryData.categories?.length || 0,
     })
 
+    // 使用 jsDelivr CDN 加速国内访问，同时确保 rawUrl 存在
+    if (galleryData.images && Array.isArray(galleryData.images)) {
+      galleryData.images = galleryData.images.map((img: any) => {
+        let rawUrl = img.rawUrl;
+        // 如果没有 rawUrl，尝试从 url 转换回 raw URL
+        if (!rawUrl && img.url) {
+          if (img.url.includes('cdn.jsdelivr.net/gh/')) {
+            rawUrl = img.url.replace(
+              'https://cdn.jsdelivr.net/gh/',
+              'https://raw.githubusercontent.com/'
+            );
+          } else if (img.url.includes('raw.githubusercontent.com')) {
+            rawUrl = img.url;
+          }
+        }
+        // 如果 url 还是 raw URL，转换为 CDN URL
+        let cdnUrl = img.url;
+        if (cdnUrl && cdnUrl.includes('raw.githubusercontent.com')) {
+          cdnUrl = cdnUrl.replace(
+            'https://raw.githubusercontent.com/',
+            'https://cdn.jsdelivr.net/gh/'
+          );
+        }
+        return {
+          ...img,
+          url: cdnUrl,
+          rawUrl: rawUrl || img.rawUrl || (img.url?.includes('raw.githubusercontent.com') ? img.url : undefined)
+        };
+      })
+    }
+
     console.log('=== Images API complete ===')
 
     res.status(200).json({

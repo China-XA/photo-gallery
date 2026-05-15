@@ -4,23 +4,16 @@ import { useAuth, User } from '../context/AuthContext'
 import imagesData from '../data/images.json'
 import './Gallery.css'
 
+// 自定义图片组件，支持 CDN 失败时回退到 raw URL
 const GalleryImage = ({ src, rawSrc, alt, ...props }: { src: string, rawSrc?: string, alt: string, [key: string]: any }) => {
   const [imgSrc, setImgSrc] = useState(src)
+  const [hasError, setHasError] = useState(false)
 
   const handleError = () => {
-    // 优先使用提供的 rawSrc
-    if (rawSrc && imgSrc !== rawSrc) {
+    if (!hasError && rawSrc) {
+      console.log('CDN failed, falling back to raw URL:', rawSrc)
       setImgSrc(rawSrc)
-    }
-    // 如果没有 rawSrc，尝试从原始 URL 构造回退 URL
-    else if (src.includes('cdn.jsdelivr.net/gh/')) {
-      const fallbackUrl = src.replace(
-        'https://cdn.jsdelivr.net/gh/',
-        'https://raw.githubusercontent.com/'
-      )
-      if (imgSrc !== fallbackUrl) {
-        setImgSrc(fallbackUrl)
-      }
+      setHasError(true)
     }
   }
 
