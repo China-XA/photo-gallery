@@ -4,11 +4,17 @@ import { useAuth, User } from '../context/AuthContext'
 import imagesData from '../data/images.json'
 import './Gallery.css'
 
+// 自定义图片组件，支持 CDN 失败时回退到 raw URL
 const GalleryImage = ({ src, rawSrc, alt, ...props }: { src: string, rawSrc?: string, alt: string, [key: string]: any }) => {
   const [imgSrc, setImgSrc] = useState(src)
 
   const handleError = () => {
+<<<<<<< HEAD
     if (rawSrc && imgSrc !== rawSrc) {
+=======
+    if (!hasError && rawSrc) {
+      console.log('CDN failed, falling back to raw URL:', rawSrc)
+>>>>>>> parent of 80bd8e0 (优化后台显示)
       setImgSrc(rawSrc)
     }
   }
