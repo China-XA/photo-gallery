@@ -107,13 +107,21 @@ export default function Gallery() {
   }
 
   const saveToLocalStorage = (currentImages: Image[], currentCategories: string[]) => {
-    const dataToSave = {
-      images: currentImages,
-      categories: currentCategories.filter(c => c !== '全部'),
-      timestamp: Date.now()
+    const hasChanges = checkUnsavedChanges(currentImages, currentCategories)
+    
+    if (hasChanges) {
+      const dataToSave = {
+        images: currentImages,
+        categories: currentCategories.filter(c => c !== '全部'),
+        timestamp: Date.now()
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
+      setHasUnsavedChanges(true)
+    } else {
+      // 如果和初始状态一样，清除暂存和提示
+      localStorage.removeItem(STORAGE_KEY)
+      setHasUnsavedChanges(false)
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
-    setHasUnsavedChanges(true)
   }
 
   const loadFromLocalStorage = () => {
