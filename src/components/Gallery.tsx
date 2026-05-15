@@ -216,13 +216,47 @@ export default function Gallery() {
     })
   }
 
-  const handleDeleteImage = async (_imageId: number, e: React.MouseEvent) => {
+  const handleDeleteImage = async (imageId: number, e: React.MouseEvent) => {
     e.stopPropagation()
     if (!confirm('确定要删除这张图片吗？')) {
       return
     }
 
-    alert('删除功能需要实现 GitHub 上的图片和 images.json 更新，当前仅本地更新演示')
+    const image = images.find(img => img.id === imageId)
+    if (!image) {
+      alert('找不到要删除的图片')
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      const response = await fetch('/api/delete-image', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          imageId: image.id,
+          fileName: image.name,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setImages(result.images)
+        setCategories(['全部', ...result.categories])
+        setUploadMessage({ type: 'success', text: result.message })
+      } else {
+        setUploadMessage({ type: 'error', text: result.error || '删除失败' })
+      }
+    } catch (error) {
+      console.error('Error deleting image:', error)
+      setUploadMessage({ type: 'error', text: '删除失败，请重试' })
+    } finally {
+      setIsLoading(false)
+      setTimeout(() => setUploadMessage(''), 3000)
+    }
   }
 
   const handleResetGallery = () => {
