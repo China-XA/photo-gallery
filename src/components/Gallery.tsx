@@ -178,7 +178,7 @@ export default function Gallery() {
     }
   }
 
-  const loadImagesFromGitHub = async (showError = true) => {
+  const loadImagesFromGitHub = async (showError = true, forceReload = false) => {
     try {
       setLoading(true)
       setErrorMessage(null)
@@ -189,9 +189,15 @@ export default function Gallery() {
         const loadedImages = data.images
         const loadedCategories = ['全部', ...data.categories]
         
-        if (!loadFromLocalStorage()) {
+        // 如果是强制刷新或者没有暂存，则从 GitHub 加载
+        if (forceReload || !loadFromLocalStorage()) {
           setImages(loadedImages)
           setCategories(loadedCategories)
+          // 强制刷新时清除暂存
+          if (forceReload) {
+            localStorage.removeItem(STORAGE_KEY)
+            setHasUnsavedChanges(false)
+          }
         }
         
         setInitialImages(loadedImages)
@@ -232,7 +238,7 @@ export default function Gallery() {
     const isGuest = currentUser?.role === 'guest'
     const initialButtons: NavButton[] = [
       { id: 'upload', label: '📤 上传图片', action: () => fileInputRef.current?.click(), className: 'nav-btn primary', condition: !isGuest },
-      { id: 'sync', label: '🔃 同步', action: () => loadImagesFromGitHub(true), className: 'nav-btn cyan', condition: !isGuest },
+      { id: 'sync', label: '🔃 同步', action: () => loadImagesFromGitHub(true, true), className: 'nav-btn cyan', condition: !isGuest },
       { id: 'category', label: '🏷️ 分类管理', action: () => setShowCategoryModal(true), className: 'nav-btn pink', condition: !isGuest },
       { id: 'user', label: '👤 用户管理', action: () => setShowUserModal(true), className: 'nav-btn blue', condition: isAdmin },
       { id: 'inviteCode', label: '🎫 授权码管理', action: () => setShowInviteCodeModal(true), className: 'nav-btn purple', condition: isAdmin },
