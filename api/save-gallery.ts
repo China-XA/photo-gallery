@@ -61,6 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     console.log('Step 1: Loading current images.json')
     let currentSha: string | undefined
+    let existingGalleryData: GalleryData | null = null
 
     try {
       const existingData = await octokit.rest.repos.getContent({
@@ -71,17 +72,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (!Array.isArray(existingData.data)) {
         currentSha = (existingData.data as any).sha
+        const content = Buffer.from((existingData.data as any).content, 'base64').toString('utf-8')
+        existingGalleryData = JSON.parse(content)
+        console.log('Loaded existing data:', existingGalleryData.images?.length || 0, 'images')
       }
     } catch (err: any) {
       console.log('images.json not found, will create new:', err.message)
     }
 
+    // 合并数据，保留现有图片的 rawUrl 等字段
+    let mergedImages: Image[] = images
+    if (existingGalleryData && existingGalleryData.images) {
+      mergedImages = images.map(img => {
+        const existingImg = existingGalleryData!.images.find((ei: Image) => ei.id === img.id)
+        if (existingImg) {
+          return {
+            ...existingImg,  // 保留原始字段（rawUrl, uploadedAt 等）
+            ...img,          // 用新数据更新（category 等）
+          }
+        }
+        return img
+      })
+    }
+
     const galleryData: GalleryData = {
-      images,
+      images: mergedImages,
       categories,
     }
 
-    console.log('Step 2: Saving to GitHub,', images.length, 'images,', categories.length, 'categories')
+    console.log('Step 2: Saving to GitHub,', mergedImages.length, 'images,', categories.length, 'categories')
 
     await octokit.rest.repos.createOrUpdateFileContents({
       owner: githubOwner,
