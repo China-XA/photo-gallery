@@ -8,8 +8,19 @@ const GalleryImage = ({ src, rawSrc, alt, ...props }: { src: string, rawSrc?: st
   const [imgSrc, setImgSrc] = useState(src)
 
   const handleError = () => {
+    // 优先使用提供的 rawSrc
     if (rawSrc && imgSrc !== rawSrc) {
       setImgSrc(rawSrc)
+    }
+    // 如果没有 rawSrc，尝试从原始 URL 构造回退 URL
+    else if (src.includes('cdn.jsdelivr.net/gh/')) {
+      const fallbackUrl = src.replace(
+        'https://cdn.jsdelivr.net/gh/',
+        'https://raw.githubusercontent.com/'
+      )
+      if (imgSrc !== fallbackUrl) {
+        setImgSrc(fallbackUrl)
+      }
     }
   }
 
