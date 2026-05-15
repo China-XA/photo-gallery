@@ -2,7 +2,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth, User } from '../context/AuthContext'
 import imagesData from '../data/images.json'
-import { logger } from '../utils/logger'
 import './Gallery.css'
 
 const GalleryImage = ({ src, rawSrc, alt, ...props }: { src: string, rawSrc?: string, alt: string, [key: string]: any }) => {
@@ -10,7 +9,6 @@ const GalleryImage = ({ src, rawSrc, alt, ...props }: { src: string, rawSrc?: st
 
   const handleError = () => {
     if (rawSrc && imgSrc !== rawSrc) {
-      logger.debug('CDN image failed, using fallback URL', { cdnUrl: imgSrc, rawUrl: rawSrc })
       setImgSrc(rawSrc)
     }
   }
