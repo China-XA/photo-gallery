@@ -4,6 +4,22 @@ import { useAuth, User } from '../context/AuthContext'
 import imagesData from '../data/images.json'
 import './Gallery.css'
 
+// 自定义图片组件，支持 CDN 失败时回退到 raw URL
+const GalleryImage = ({ src, rawSrc, alt, ...props }: { src: string, rawSrc?: string, alt: string, [key: string]: any }) => {
+  const [imgSrc, setImgSrc] = useState(src)
+  const [hasError, setHasError] = useState(false)
+
+  const handleError = () => {
+    if (!hasError && rawSrc) {
+      console.log('CDN failed, falling back to raw URL:', rawSrc)
+      setImgSrc(rawSrc)
+      setHasError(true)
+    }
+  }
+
+  return <img src={imgSrc} alt={alt} onError={handleError} {...props} />
+}
+
 const padString = (str: string, length: number): string => {
   if (str.length >= length) {
     return str.slice(0, length)
@@ -15,6 +31,7 @@ interface Image {
   id: number
   name: string
   url: string
+  rawUrl?: string
   uploadedAt: string
   category: string
 }
@@ -29,7 +46,7 @@ interface NavButton {
 
 export default function Gallery() {
   const { logout, currentUser, users, addUser, deleteUser, updateUser, inviteCodes, generateInviteCode, deactivateInviteCode, deleteInviteCode } = useAuth()
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<Image | null>(null)
   const [images, setImages] = useState<Image[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('全部')
@@ -657,9 +674,9 @@ export default function Gallery() {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5 }}
               whileHover={{ scale: 1.05, zIndex: 10 }}
-              onClick={() => setSelectedImage(image.url)}
+              onClick={() => setSelectedImage(image)}
             >
-              <img src={image.url} alt={image.name} loading="lazy" />
+              <GalleryImage src={image.url} rawSrc={image.rawUrl} alt={image.name} loading="lazy" />
               <div className="overlay">
                 <span>查看</span>
               </div>
@@ -703,15 +720,20 @@ export default function Gallery() {
             exit={{ opacity: 0 }}
             onClick={() => setSelectedImage(null)}
           >
-            <motion.img
-              src={selectedImage}
-              alt="放大"
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.5, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              onClick={(e) => e.stopPropagation()}
-            />
+            <motion.div
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GalleryImage 
+                  src={selectedImage.url} 
+                  rawSrc={selectedImage.rawUrl} 
+                  alt="放大" 
+                  style={{ maxWidth: '90vw', maxHeight: '90vh', objectFit: 'contain' }} 
+                />
+              </motion.div>
             <button
               className="close-btn"
               onClick={() => setSelectedImage(null)}

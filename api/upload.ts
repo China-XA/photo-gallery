@@ -5,6 +5,7 @@ interface Image {
   id: number
   name: string
   url: string
+  rawUrl?: string
   uploadedAt: string
   category: string
 }
@@ -85,6 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.log('GitHub URL:', githubUrl)
 
     // 使用 jsDelivr CDN 加速国内访问
+    // 正确格式: https://cdn.jsdelivr.net/gh/owner/repo@branch/path
     const imageUrl = githubUrl.replace(
       'https://raw.githubusercontent.com/',
       'https://cdn.jsdelivr.net/gh/'
@@ -122,6 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       id: Date.now(),
       name: fileName,
       url: imageUrl,
+      rawUrl: githubUrl, // 保存 GitHub raw URL 作为备用
       uploadedAt: new Date().toISOString(),
       category,
     }
