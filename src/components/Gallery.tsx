@@ -229,7 +229,7 @@ export default function Gallery() {
     }
 
     try {
-      setIsLoading(true)
+      setUploading(true)
       const response = await fetch('/api/delete-image', {
         method: 'DELETE',
         headers: {
@@ -246,15 +246,15 @@ export default function Gallery() {
       if (result.success) {
         setImages(result.images)
         setCategories(['全部', ...result.categories])
-        setUploadMessage({ type: 'success', text: result.message })
+        setUploadMessage('图片删除成功！')
       } else {
-        setUploadMessage({ type: 'error', text: result.error || '删除失败' })
+        setUploadMessage('删除失败: ' + (result.error || '未知错误'))
       }
     } catch (error) {
       console.error('Error deleting image:', error)
-      setUploadMessage({ type: 'error', text: '删除失败，请重试' })
+      setUploadMessage('删除失败，请重试')
     } finally {
-      setIsLoading(false)
+      setUploading(false)
       setTimeout(() => setUploadMessage(''), 3000)
     }
   }
