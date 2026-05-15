@@ -87,8 +87,88 @@ export default function Gallery() {
   const [adminNewPassword, setAdminNewPassword] = useState('')
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [initialImages, setInitialImages] = useState<Image[]>([])
+  const [initialCategories, setInitialCategories] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
+
+  const STORAGE_KEY = 'gallery-unsaved-data'
+
+  const checkUnsavedChanges = (currentImages: Image[], currentCategories: string[]) => {
+    const cleanCurrentCategories = currentCategories.filter(c => c !== '全部')
+    const cleanInitialCategories = initialCategories.filter(c => c !== '全部')
+    
+    const imagesChanged = JSON.stringify(currentImages) !== JSON.stringify(initialImages)
+    const categoriesChanged = JSON.stringify(cleanCurrentCategories) !== JSON.stringify(cleanInitialCategories)
+    
+    return imagesChanged || categoriesChanged
+  }
+
+  const saveToLocalStorage = (currentImages: Image[], currentCategories: string[]) => {
+    const dataToSave = {
+      images: currentImages,
+      categories: currentCategories.filter(c => c !== '全部'),
+      timestamp: Date.now()
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave))
+    setHasUnsavedChanges(true)
+  }
+
+  const loadFromLocalStorage = () => {
+    const savedData = localStorage.getItem(STORAGE_KEY)
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData)
+        if (confirm('发现未保存的变更，是否恢复？')) {
+          setImages(parsed.images)
+          setCategories(['全部', ...parsed.categories])
+          setHasUnsavedChanges(true)
+          return true
+        }
+      } catch (e) {
+        console.error('Failed to load from localStorage:', e)
+      }
+    }
+    return false
+  }
+
+  const saveToGitHub = async () => {
+    if (!hasUnsavedChanges) return
+    
+    setIsSaving(true)
+    try {
+      const response = await fetch('/api/save-gallery', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          images,
+          categories: categories.filter(c => c !== '全部')
+        })
+      })
+
+      const result = await response.json()
+      
+      if (result.success) {
+        localStorage.removeItem(STORAGE_KEY)
+        setHasUnsavedChanges(false)
+        setInitialImages(images)
+        setInitialCategories(categories)
+        setUploadMessage('✅ 保存成功！')
+        setTimeout(() => setUploadMessage(''), 3000)
+      } else {
+        alert('保存失败: ' + (result.error || '未知错误'))
+      }
+    } catch (error) {
+      console.error('Save error:', error)
+      alert('保存失败，请检查网络连接')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const loadImagesFromGitHub = async (showError = true) => {
     try {
@@ -98,8 +178,16 @@ export default function Gallery() {
       const data = await response.json()
       
       if (data.success && data.images && data.categories) {
-        setImages(data.images)
-        setCategories(['全部', ...data.categories])
+        const loadedImages = data.images
+        const loadedCategories = ['全部', ...data.categories]
+        
+        if (!loadFromLocalStorage()) {
+          setImages(loadedImages)
+          setCategories(loadedCategories)
+        }
+        
+        setInitialImages(loadedImages)
+        setInitialCategories(loadedCategories)
         console.log('Images loaded successfully from GitHub')
       } else {
         const errorMsg = data.error || 'Failed to load images'
@@ -109,6 +197,8 @@ export default function Gallery() {
         console.error('Failed to load images:', data.error)
         setImages(imagesData.images)
         setCategories(['全部', ...imagesData.categories])
+        setInitialImages(imagesData.images)
+        setInitialCategories(['全部', ...imagesData.categories])
       }
     } catch (error) {
       const errorMsg = 'Failed to connect to server'
@@ -118,6 +208,8 @@ export default function Gallery() {
       console.error('Failed to load images from GitHub:', error)
       setImages(imagesData.images)
       setCategories(['全部', ...imagesData.categories])
+      setInitialImages(imagesData.images)
+      setInitialCategories(['全部', ...imagesData.categories])
     } finally {
       setLoading(false)
     }
@@ -277,10 +369,12 @@ export default function Gallery() {
   }
 
   const handleResetGallery = () => {
-    if (confirm('确定要重置为默认图片吗？这会从 GitHub 重新加载数据。')) {
-      setImages(imagesData.images)
-      setCategories(['全部', ...imagesData.categories])
-      setUploadMessage('已重置到默认状态，请手动同步 GitHub')
+    if (confirm('确定要重置为默认图片吗？这会丢弃所有未保存的变更。')) {
+      setImages(initialImages)
+      setCategories(initialCategories)
+      localStorage.removeItem(STORAGE_KEY)
+      setHasUnsavedChanges(false)
+      setUploadMessage('已重置')
       setTimeout(() => setUploadMessage(''), 3000)
     }
   }
@@ -309,10 +403,12 @@ export default function Gallery() {
         const importedCategories = importedData.categories || []
         
         if (Array.isArray(importedImages)) {
-          if (confirm(`确定要导入 ${importedImages.length} 张图片吗？这将替换当前显示的图片，但需要手动同步到 GitHub。`)) {
+          if (confirm(`确定要导入 ${importedImages.length} 张图片吗？这将替换当前内容。`)) {
+            const newCategories = ['全部', ...importedCategories]
             setImages(importedImages)
-            setCategories(['全部', ...importedCategories])
-            setUploadMessage('导入成功，请手动同步到 GitHub')
+            setCategories(newCategories)
+            saveToLocalStorage(importedImages, newCategories)
+            setUploadMessage('导入成功！记得保存变更。')
             setTimeout(() => setUploadMessage(''), 3000)
           }
         } else {
@@ -349,7 +445,7 @@ export default function Gallery() {
     setImages(newImages)
     setImageDraggedIndex(null)
     
-    alert('图片排序已更新，需要手动同步到 GitHub 才能保存')
+    saveToLocalStorage(newImages, categories)
   }
 
   const handleDragEnd = () => {
@@ -359,22 +455,27 @@ export default function Gallery() {
   const handleAddCategory = () => {
     if (newCategoryName.trim()) {
       if (!categories.includes(newCategoryName.trim())) {
-        setCategories((prev) => [...prev, newCategoryName.trim()])
+        const newCategories = [...categories, newCategoryName.trim()]
+        setCategories(newCategories)
+        saveToLocalStorage(images, newCategories)
       }
       setNewCategoryName('')
       setShowAddCategoryModal(false)
-      alert('分类已添加，需要手动同步到 GitHub 才能保存')
     }
   }
 
   const handleEditCategory = (oldName: string, newName: string) => {
     if (!newName.trim() || oldName === newName.trim()) return
     
-    setCategories((prev) => prev.map(c => c === oldName ? newName.trim() : c))
-    setImages((prev) => prev.map(img => img.category === oldName ? { ...img, category: newName.trim() } : img))
+    const newCategories = categories.map(c => c === oldName ? newName.trim() : c)
+    const newImages = images.map(img => img.category === oldName ? { ...img, category: newName.trim() } : img)
+    
+    setCategories(newCategories)
+    setImages(newImages)
     setEditingCategory(null)
     setEditingCategoryName('')
-    alert('分类已更新，需要手动同步到 GitHub 才能保存')
+    
+    saveToLocalStorage(newImages, newCategories)
   }
 
   const handleDeleteCategory = (categoryName: string) => {
@@ -384,17 +485,20 @@ export default function Gallery() {
     }
     
     if (confirm(`确定要删除分类"${categoryName}"吗？该分类下的图片将移动到"未分类"。`)) {
-      setCategories((prev) => prev.filter(c => c !== categoryName))
-      setImages((prev) => prev.map(img => img.category === categoryName ? { ...img, category: '未分类' } : img))
-      alert('分类已删除，需要手动同步到 GitHub 才能保存')
+      const newCategories = categories.filter(c => c !== categoryName)
+      const newImages = images.map(img => img.category === categoryName ? { ...img, category: '未分类' } : img)
+      
+      setCategories(newCategories)
+      setImages(newImages)
+      
+      saveToLocalStorage(newImages, newCategories)
     }
   }
 
   const handleUpdateImageCategory = (imageId: number, newCategory: string) => {
-    setImages((prev) =>
-      prev.map((img) => (img.id === imageId ? { ...img, category: newCategory } : img))
-    )
-    alert('图片分类已更新，需要手动同步到 GitHub 才能保存')
+    const newImages = images.map((img) => (img.id === imageId ? { ...img, category: newCategory } : img))
+    setImages(newImages)
+    saveToLocalStorage(newImages, categories)
   }
 
   const handleAddUser = () => {
@@ -606,6 +710,15 @@ export default function Gallery() {
         <div className="error-banner">
           <p>⚠️ {errorMessage}</p>
           <button onClick={() => loadImagesFromGitHub(true)}>重试</button>
+        </div>
+      )}
+
+      {hasUnsavedChanges && (
+        <div className="unsaved-changes-banner">
+          <p>⚠️ 有未保存的变更</p>
+          <button onClick={saveToGitHub} disabled={isSaving}>
+            {isSaving ? '保存中...' : '保存变更'}
+          </button>
         </div>
       )}
 

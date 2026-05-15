@@ -1141,3 +1141,42 @@
   color: #999;
   padding: 40px 0;
 }
+
+.unsaved-changes-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  gap: 16px;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.unsaved-changes-banner p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.unsaved-changes-banner button {
+  padding: 8px 20px;
+  background: white;
+  color: #d97706;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.unsaved-changes-banner button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.unsaved-changes-banner button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
