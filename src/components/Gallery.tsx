@@ -7,52 +7,12 @@ import './Gallery.css'
 
 const GalleryImage = ({ src, rawSrc, alt, ...props }: { src: string, rawSrc?: string, alt: string, [key: string]: any }) => {
   const [imgSrc, setImgSrc] = useState(src)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const checkCDNAvailability = async () => {
-      if (!rawSrc) {
-        setIsLoading(false)
-        return
-      }
-
-      try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 3000)
-
-        const response = await fetch(src, { 
-          method: 'HEAD',
-          signal: controller.signal
-        })
-
-        clearTimeout(timeout)
-
-        if (response.ok) {
-          setIsLoading(false)
-        } else {
-          logger.warn('CDN returned non-OK status', { cdnUrl: src, status: response.status })
-          setImgSrc(rawSrc)
-          setIsLoading(false)
-        }
-      } catch (err) {
-        logger.warn('CDN pre-check failed or timed out', { cdnUrl: src, rawUrl: rawSrc, error: err instanceof Error ? err.message : 'Unknown' })
-        setImgSrc(rawSrc)
-        setIsLoading(false)
-      }
-    }
-
-    checkCDNAvailability()
-  }, [src, rawSrc])
 
   const handleError = () => {
     if (rawSrc && imgSrc !== rawSrc) {
-      logger.error('Image load failed, using fallback URL', { cdnUrl: imgSrc, rawUrl: rawSrc })
+      logger.debug('CDN image failed, using fallback URL', { cdnUrl: imgSrc, rawUrl: rawSrc })
       setImgSrc(rawSrc)
     }
-  }
-
-  if (isLoading) {
-    return null
   }
 
   return <img src={imgSrc} alt={alt} onError={handleError} {...props} />
